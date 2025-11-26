@@ -18,4 +18,4 @@ def crear_base_datos_de_tablas():
     
     conn.commit()
     conn.close()
-    print("Base de datos y tabla verificadas exitosamente.")
+    print(" Base de datos y tabla verificadas exitosamente.")
