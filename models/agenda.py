@@ -1,4 +1,4 @@
-from contacto import Contacto
+
 
 # Clase agenda con metodos CRUD integrada con la clase contacto
 class Agenda:
@@ -26,7 +26,7 @@ class Agenda:
             if (nombre_contacto == contacto.nombre):
                 print("Contacto encontrado!!")
                 contacto.mostrar_info_contacto()
-                return
+                return contacto
             
         print("No se encontro el contacto")
 
@@ -35,7 +35,7 @@ class Agenda:
             if (email_contacto == contacto.email):
                 print("Contacto encontrado!!")
                 contacto.mostrar_info_contacto()
-                break
+                return contacto
         
         print("No se encontro el contacto")
 
@@ -44,7 +44,7 @@ class Agenda:
             if (telefono_contacto == contacto.telefono):
                 print("Contacto encontrado!!")
                 contacto.mostrar_info_contacto()
-                return
+                return contacto
             
         print("No se encontro el contacto")
 
@@ -56,6 +56,12 @@ class Agenda:
         return encontrados
     
 
+    def modificar_contacto(self , contacto):
+        nombre = input("Ingresa el nuevo nombre: ")
+        telefono = input("Ingresa el nuevo telefono: ")
+        email = input("Ingresa el nuevo email: ")
 
-
+        contacto.nombre = nombre
+        contacto.telefono = telefono
+        contacto.email = email
 
