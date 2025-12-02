@@ -121,7 +121,7 @@ class AgendaApp:
     
     def _show_team_modal(self):
         """
-        Muestra la ventana informativa del equipo con el diseño exacto de la imagen.
+        Muestra la ventana informativa del equipo de trabajo
         """
         # 1. Overlay (Fondo oscuro total)
         team_overlay = tk.Frame(self.master, bg=Config.TEAM_BG_DARK)
@@ -202,3 +202,71 @@ class AgendaApp:
     # ##################################################################################
     # ### FIN SECCIÓN NUEVA                                                         ###
     # ##################################################################################
+    def _get_current_contacts(self, search_text=None):
+        if search_text and search_text != "Buscar contacto...":
+            return [c for c in MOCK_CONTACTS if search_text.lower() in c.nombre.lower()]
+        return MOCK_CONTACTS
+
+    # --- VISTA 1: LISTA PRINCIPAL ---
+    def show_main_view(self):
+        self._clear_view()
+        self.master.configure(bg=Config.COLOR_CREMA_FONDO)
+        
+        # 1. ENCABEZADO SUPERIOR
+        header_frame = ttk.Frame(self.master, style='Header.TFrame', height=70, padding=10)
+        header_frame.pack(fill='x')
+        
+        ttk.Label(header_frame, text="👑", style='Header.TLabel', foreground=Config.COLOR_DORADO).pack(side='left', padx=15)
+        ttk.Label(header_frame, text="AGENDA NORMA INGENS ROBUR", style='Header.TLabel').pack(side='left', padx=20)
+        
+        # 2. BARRA DE BÚSQUEDA
+        search_frame = ttk.Frame(self.master, style='Main.TFrame', padding=20)
+        search_frame.pack(fill='x')
+        
+        search_var = tk.StringVar(value="Buscar contacto...")
+        search_entry = ttk.Entry(search_frame, textvariable=search_var, font=('Helvetica', 12), width=50, bootstyle="primary")
+        
+        def on_search(event=None):
+            self._refresh_list_container(scrolled_frame, self._get_current_contacts(search_var.get()))
+            
+        def clear_placeholder(event):
+            if search_entry.get() == "Buscar contacto...":
+                search_entry.delete(0, END)
+                search_entry.config(foreground='black')
+            
+        def reset_placeholder(event):
+            if not search_entry.get():
+                search_entry.insert(0, "Buscar contacto...")
+                search_entry.config(foreground='gray')
+            
+        search_entry.bind("<FocusIn>", clear_placeholder)
+        search_entry.bind("<FocusOut>", reset_placeholder)
+        search_entry.bind("<Return>", on_search)
+        search_entry.pack(pady=5, ipady=5, side='left', expand=True, padx=(0, 10))
+        search_entry.config(foreground='gray')
+        
+        ttk.Button(search_frame, text=Config.ICON_BUSCAR, command=on_search, bootstyle="primary").pack(side='left')
+
+        # 3. CONTENEDOR DE LA LISTA
+        list_container = ttk.Frame(self.master, style='Main.TFrame', padding=(50, 0, 50, 0))
+        list_container.pack(fill='both', expand=True)
+
+        scrolled_frame = ScrolledFrame(list_container, autohide=True, bootstyle="light")
+        scrolled_frame.pack(fill='both', expand=True)
+        scrolled_frame.container.configure(style='Main.TFrame')
+        
+        # 4. ITERAR Y CREAR TARJETAS
+        self._refresh_list_container(scrolled_frame, self._get_current_contacts())
+            
+        # 5. BOTÓN FLOTANTE (AGREGAR)
+        add_button = tk.Button(self.master, text="+", bg=Config.COLOR_DORADO, fg=Config.COLOR_NAVY_PROFUNDO, 
+                               font=('Arial', 24, 'bold'), width=3, height=1, bd=0, relief='raised',
+                               cursor="hand2", command=self.show_new_contact_form)
+        add_button.place(relx=0.95, rely=0.95, anchor='se')
+
+        # ### NUEVO CODIGO: BOTÓN FLOTANTE INFO EQUIPO (Inferior Izquierda) ###
+        info_button = tk.Button(self.master, text=Config.ICON_INFO, bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_DORADO,
+                                font=('Arial', 20, 'bold'), width=3, height=1, bd=0, relief='raised',
+                                cursor="hand2", command=self._show_team_modal)
+        info_button.place(relx=0.03, rely=0.95, anchor='sw')
+        # ### FIN NUEVO CODIGO ###
