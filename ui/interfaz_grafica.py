@@ -270,3 +270,159 @@ class AgendaApp:
                                 cursor="hand2", command=self._show_team_modal)
         info_button.place(relx=0.03, rely=0.95, anchor='sw')
         # ### FIN NUEVO CODIGO ###
+
+    def _refresh_list_container(self, list_container, contacts_list):
+            for widget in list_container.container.winfo_children():
+                widget.destroy()
+
+            if not contacts_list:
+                ttk.Label(list_container.container, text="No se encontraron contactos.", style='Main.TFrame', font=('Helvetica', 14)).pack(pady=50)
+            else:
+                for contact in contacts_list:
+                    self.create_contact_card(list_container, contact)
+
+    def create_contact_card(self, parent_widget, contact):
+        card = tk.Frame(parent_widget.container, bg=Config.COLOR_BLANCO, padx=20, pady=15, 
+                        relief='flat', borderwidth=1, 
+                        highlightbackground=Config.COLOR_DORADO, highlightthickness=1)
+        card.pack(fill='x', padx=10, pady=8)
+        
+        card.bind("<Button-1>", lambda e: self.show_contact_detail(contact))
+        
+        lbl_initials = tk.Label(card, text=contact.get_initials(), bg=Config.COLOR_DORADO, fg=Config.COLOR_NAVY_PROFUNDO, 
+                                font=('Helvetica', 14, 'bold'), width=5, height=2)
+        lbl_initials.pack(side='left', padx=(0, 20))
+        lbl_initials.bind("<Button-1>", lambda e: self.show_contact_detail(contact))
+
+        info_frame = tk.Frame(card, bg=Config.COLOR_BLANCO) 
+        info_frame.pack(side='left', fill='both', expand=True)
+        
+        lbl_name = ttk.Label(info_frame, text=contact.nombre, font=('Helvetica', 14, 'bold'), foreground=Config.COLOR_NAVY_PROFUNDO, background=Config.COLOR_BLANCO)
+        lbl_name.pack(anchor='w')
+        
+        lbl_detail = ttk.Label(info_frame, text=contact.email, font=('Helvetica', 10), foreground='gray', background=Config.COLOR_BLANCO)
+        lbl_detail.pack(anchor='w')
+
+        for w in [info_frame, lbl_name, lbl_detail]:
+            w.bind("<Button-1>", lambda e: self.show_contact_detail(contact))
+
+        ttk.Button(card, text=Config.ICON_LLAMAR, bootstyle="outline-primary", width=3, 
+                   command=lambda: self._show_info_modal("Acción", f"Simulando llamada a {contact.telefono}")).pack(side='right', padx=5)
+        ttk.Button(card, text=Config.ICON_MENSAJE, bootstyle="outline-warning", width=3,
+                   command=lambda: self._show_info_modal("Acción", f"Abriendo correo para {contact.email}")).pack(side='right', padx=5)
+
+    def show_new_contact_form(self):
+        self._clear_view()
+        self.master.configure(bg=Config.COLOR_CREMA_FONDO)
+        self._create_contact_form_view(title="NUEVO CONTACTO")
+
+    def show_contact_detail(self, contact):
+        self._clear_view()
+        self.selected_contact = contact
+        self.master.configure(bg=Config.COLOR_CREMA_FONDO)
+
+        header_frame = ttk.Frame(self.master, style='Header.TFrame', height=70, padding=10)
+        header_frame.pack(fill='x')
+        tk.Button(header_frame, text=f"{Config.ICON_ATRAS} Volver", command=self.show_main_view, bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_BLANCO, bd=0, font=('Helvetica', 12)).pack(side='left', padx=15)
+        ttk.Label(header_frame, text="DETALLE", style='Header.TLabel').pack(side='left', padx=50)
+        ttk.Button(header_frame, text=f"{Config.ICON_EDITAR} Editar", style='Gold.TButton', command=lambda: self.show_edit_contact_form(contact)).pack(side='right', padx=15)
+
+        profile_frame = tk.Frame(self.master, bg=Config.COLOR_BLANCO, padx=50, pady=30, relief='raised')
+        profile_frame.pack(pady=30, padx=50, fill='x')
+        tk.Label(profile_frame, text=contact.get_initials(), bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_DORADO, font=('Helvetica', 35, 'bold'), width=4, height=2).pack(pady=10)
+        ttk.Label(profile_frame, text=contact.nombre, font=('Helvetica', 22, 'bold'), background=Config.COLOR_BLANCO, foreground=Config.COLOR_NAVY_PROFUNDO).pack(pady=5)
+        
+        action_frame = tk.Frame(profile_frame, bg=Config.COLOR_BLANCO, pady=20)
+        action_frame.pack()
+        ttk.Button(action_frame, text=f"{Config.ICON_LLAMAR} Llamar", style='Gold.TButton', width=15, 
+                   command=lambda: self._show_info_modal("Acción", f"Simulando llamada a {contact.telefono}")).pack(side='left', padx=10)
+        ttk.Button(action_frame, text=f"{Config.ICON_MENSAJE} Correo", style='Gold.TButton', width=15,
+                   command=lambda: self._show_info_modal("Acción", f"Abriendo correo para {contact.email}")).pack(side='left', padx=10)
+
+        info_frame = ttk.Frame(self.master, style='Main.TFrame', padding=(50, 20, 50, 20))
+        info_frame.pack(fill='both', expand=True)
+
+        def create_detail_row(label, value):
+            f = ttk.Frame(info_frame, style='Main.TFrame')
+            f.pack(fill='x', pady=8)
+            ttk.Label(f, text=label, font=('Helvetica', 10, 'bold'), foreground=Config.COLOR_NAVY_PROFUNDO, background=Config.COLOR_CREMA_FONDO).pack(anchor='w')
+            ttk.Label(f, text=value, font=('Helvetica', 16), background=Config.COLOR_CREMA_FONDO).pack(anchor='w')
+            ttk.Separator(f, orient='horizontal').pack(fill='x', pady=5)
+
+        create_detail_row("ID de Contacto", str(contact.id))
+        create_detail_row("Teléfono Móvil", contact.telefono)
+        create_detail_row("Correo Electrónico", contact.email)
+
+        ttk.Button(self.master, text=f"{Config.ICON_ELIMINAR} Eliminar Contacto", bootstyle="danger", width=30, 
+                   command=lambda: self.handle_delete_contact(contact)).pack(pady=20)
+                   
+    def show_edit_contact_form(self, contact):
+        self._clear_view()
+        self.master.configure(bg=Config.COLOR_CREMA_FONDO)
+        self._create_contact_form_view(title="EDITAR CONTACTO", contact_to_edit=contact)
+
+    def _create_contact_form_view(self, title, contact_to_edit=None):
+        header_frame = ttk.Frame(self.master, style='Header.TFrame', height=70, padding=10)
+        header_frame.pack(fill='x')
+        tk.Button(header_frame, text=f"{Config.ICON_ATRAS} Volver", command=self.show_main_view, bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_BLANCO, bd=0, font=('Helvetica', 12)).pack(side='left', padx=15)
+        ttk.Label(header_frame, text=title, style='Header.TLabel').pack(side='left', padx=50)
+
+        form_container = ttk.Frame(self.master, style='Main.TFrame', padding=40)
+        form_container.pack(fill='both', expand=True)
+        
+        self.form_vars = {
+            "nombre": tk.StringVar(value=contact_to_edit.nombre if contact_to_edit else ""), 
+            "telefono": tk.StringVar(value=contact_to_edit.telefono if contact_to_edit else ""), 
+            "email": tk.StringVar(value=contact_to_edit.email if contact_to_edit else "")
+        }
+        
+        def create_bootstrap_input(parent, label_text, var):
+            container = ttk.Frame(parent, style='Main.TFrame')
+            container.pack(fill='x', pady=10)
+            ttk.Label(container, text=label_text, font=('Helvetica', 11, 'bold'), background=Config.COLOR_CREMA_FONDO, foreground=Config.COLOR_NAVY_PROFUNDO).pack(anchor='w')
+            entry = ttk.Entry(container, textvariable=var, font=('Helvetica', 12), bootstyle="primary")
+            entry.pack(fill='x', pady=(5, 0))
+            return entry
+
+        create_bootstrap_input(form_container, "Nombre Completo", self.form_vars["nombre"])
+        create_bootstrap_input(form_container, "Teléfono", self.form_vars["telefono"])
+        create_bootstrap_input(form_container, "Correo Electrónico", self.form_vars["email"])
+
+        save_command = lambda: self.handle_save_contact(contact_to_edit)
+        ttk.Button(form_container, text=f"{Config.ICON_GUARDAR} GUARDAR CONTACTO", style='Gold.TButton', width=30, 
+                   command=save_command).pack(pady=30)
+                   
+        if contact_to_edit:
+             ttk.Label(form_container, text=f"ID de Contacto: {contact_to_edit.id}", font=('Helvetica', 9), background=Config.COLOR_CREMA_FONDO, foreground='gray').pack(pady=5)
+
+    def handle_save_contact(self, contact_to_edit=None):
+        name = self.form_vars["nombre"].get().strip()
+        phone = self.form_vars["telefono"].get().strip()
+        email = self.form_vars["email"].get().strip()
+
+        if not name or not phone:
+            self._show_info_modal("Error de Validación", "Nombre y Teléfono son obligatorios.")
+            return
+
+        if contact_to_edit:
+            self._show_info_modal("CONEXIÓN PENDIENTE", f"MODIFICAR Contacto (ID: {contact_to_edit.id}) listo para implementar.")
+        else:
+            self._show_info_modal("CONEXIÓN PENDIENTE", f"INSERTAR Nuevo Contacto ({name}) listo para implementar.")
+        
+        self.show_main_view() 
+
+    def handle_delete_contact(self, contact):
+        def perform_deletion():
+            self._show_info_modal("CONEXIÓN PENDIENTE", f"ELIMINAR Contacto con ID: {contact.id} listo para implementar.")
+            self.show_main_view()
+
+        self._show_confirmation_modal(
+            "Eliminar Contacto", 
+            f"¿Está seguro de que desea eliminar a {contact.nombre} (ID: {contact.id})? Esta acción es irreversible.",
+            perform_deletion)
+
+
+if __name__ == "__main__":
+    root = ttk.Window(themename="litera")
+    app = AgendaApp(root)
+    root.mainloop()
