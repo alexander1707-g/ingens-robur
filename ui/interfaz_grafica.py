@@ -30,7 +30,7 @@ class Config:
 
 # --- 2. CLASE DE MOCKUP PARA LA INTERFAZ ---
 class MockContact:
-    def _init_(self, id, nombre, telefono, email):
+    def __init__(self, id, nombre, telefono, email):
         self.id = id
         self.nombre = nombre
         self.telefono = telefono
@@ -49,7 +49,7 @@ MOCK_CONTACTS = [
 ]
 
 class AgendaApp:
-    def _init_(self, master):
+    def __init__(self, master):
         self.master = master
         self.master.title("AGENDA NORMA INGENS ROBUR - Escritorio")
         self.master.geometry("1000x700")
