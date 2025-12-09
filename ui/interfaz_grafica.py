@@ -1,428 +1,438 @@
+import sys
+import os
 import tkinter as tk
-from tkinter import PhotoImage
+from tkinter import END, messagebox # Importamos messagebox explícitamente
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.widgets.scrolled import ScrolledFrame
-import os # Importado para verificar si existe la imagen
+from PIL import Image, ImageTk 
 
-# --- 1. DEFINICIÓN DE CONSTANTES Y COLORES ---
+# --- CONFIGURACIÓN DE RUTAS ---
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.append(project_root)
+
+# --- MOCKUP DE BASE DE DATOS Y UTILIDADES ---
+try:
+    from database import agenda_database as db 
+    from utils import validaciones as val 
+except ImportError:
+    class db:
+        @staticmethod
+        def crear_tabla(): pass
+        @staticmethod
+        def obtener_contactos(q=None): 
+            # Datos de prueba
+            return [
+                (1, "Juan Perez", "3001234567", "juan.perez@ejemplo.com"), 
+                (2, "Maria Lopez", "3109876543", "maria.design@ejemplo.com"),
+                (3, "Carlos Rodriguez", "3155558888", "carlos.dev@ejemplo.com")
+            ]
+        @staticmethod
+        def insertar_contacto(n,p,e): pass
+        @staticmethod
+        def actualizar_contacto(id,n,p,e): pass
+        @staticmethod
+        def eliminar_contacto(id): pass
+    class val:
+        @staticmethod
+        def validar_telefono(t): return t.isdigit() and len(t) in [7, 10]
+        @staticmethod
+        def validar_email(e): return "@" in e
+
+# --- 1. CONSTANTES Y CONFIGURACIÓN ESTÉTICA ---
 class Config:
-    COLOR_NAVY_PROFUNDO = "#1A2B4C"  # Azul Dominante App Principal
-    COLOR_DORADO = "#C59D5F"         # Dorado/Acento
-    COLOR_CREMA_FONDO = "#F5F5F0"    # Fondo Suave
+    # Colores base (Paleta Original Restaurada)
+    COLOR_NAVY_PROFUNDO = "#1A2B4C"       # Azul Dominante
+    COLOR_DORADO = "#C59D5F"              # Acento Dorado
+    COLOR_CREMA_FONDO = "#F5F5F0"         # Fondo Principal
     COLOR_BLANCO = "#FFFFFF"
     
-    # --- PALETA EXACTA DE LA IMAGEN "EQUIPO DE TRABAJO" ---
-    TEAM_BG_DARK = "#0C1524"         # Azul muy oscuro (fondo derecha)
-    TEAM_BG_CREAM = "#F2F0E4"        # Crema (fondo logo izquierda)
-    TEAM_TEXT_GOLD = "#D4AF37"       # Dorado brillante para textos
+    # Paleta Modal Equipo
+    TEAM_BG_DARK = "#0C1524"              
+    TEAM_BG_CREAM = "#F2F0E4"             
+    TEAM_TEXT_GOLD = "#D4AF37"            
     TEAM_TEXT_WHITE = "#FFFFFF"
     
-    # Iconos Aplicación
+    # Iconos
     ICON_ATRAS = "⬅"
     ICON_GUARDAR = "💾"
-    ICON_LLAMAR = "📞"
-    ICON_MENSAJE = "✉"
-    ICON_EDITAR = "✏"
+    ICON_EDITAR = "✏️" 
     ICON_BUSCAR = "🔍"
-    ICON_ELIMINAR = "🗑"
-    ICON_INFO = "ℹ" # Icono para el botón del equipo
+    ICON_ELIMINAR = "🗑️"
+    ICON_INFO = "     ℹ️"
+    ICON_CROWN = "👑"
 
-# --- 2. CLASE DE MOCKUP PARA LA INTERFAZ ---
-class MockContact:
-    def __init__(self, id, nombre, telefono, email):
-        self.id = id
-        self.nombre = nombre
-        self.telefono = telefono
-        self.email = email
+# --- 2. UTILIDADES ---
+class ImageAdapter:
+    def __init__(self, master, image_path):
+        self.master = master
+        self.image_path = image_path
+        self.original_image = None
+        self.tk_image = None
+        try:
+            self.original_image = Image.open(image_path)
+            self.image_loaded = True
+        except Exception:
+            self.image_loaded = False
 
-    def get_initials(self):
-        parts = self.nombre.split()
-        if not parts: return "NN"
-        return "".join([p[0].upper() for p in parts[:2]])
+    def resize_image(self, width, height):
+        if not self.image_loaded: return None
+        original_width, original_height = self.original_image.size
+        ratio = min(width / original_width, height / original_height)
+        new_width = int(original_width * ratio)
+        new_height = int(original_height * ratio)
+        if new_width <= 0 or new_height <= 0: return None
+        resized_img = self.original_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        self.tk_image = ImageTk.PhotoImage(resized_img)
+        return self.tk_image
 
-# --- 3. DATOS DE EJEMPLO ---
-MOCK_CONTACTS = [
-    MockContact(1, "Juan Pérez (Mockup)", "555-1234", "juan.perez@ejemplo.com"),
-    MockContact(2, "María González (Mockup)", "555-5678", "maria.g@ejemplo.com"),
-    MockContact(3, "Carlos Ruiz (Mockup)", "555-9012", "carlos.ruiz@ejemplo.com")
-]
+def get_initials(nombre):
+    parts = nombre.split()
+    if not parts: return "NN"
+    initials = parts[0][0].upper()
+    if len(parts) > 1: initials += parts[1][0].upper()
+    return initials
 
+# --- 3. CLASE PRINCIPAL ---
 class AgendaApp:
     def __init__(self, master):
         self.master = master
         self.master.title("AGENDA NORMA INGENS ROBUR - Escritorio")
-        self.master.geometry("1000x700")
+        self.master.geometry("1100x750")
         
-        # Inicialización de variables y estilos
-        self.selected_contact = None
+        db.crear_tabla() 
         self._configure_styles()
+        
+        # Logo para el modal
+        logo_path = os.path.join(project_root, 'ui', 'logo_empresa.png') 
+        self.team_logo_adapter = ImageAdapter(master, logo_path)
+        
         self.show_main_view()
         
     def _configure_styles(self):
-        """Configura los estilos personalizados de ttkbootstrap."""
-        self.style = ttk.Style()
-        self.style.configure('Main.TFrame', background=Config.COLOR_CREMA_FONDO)
-        self.style.configure('Header.TFrame', background=Config.COLOR_NAVY_PROFUNDO)
-        self.style.configure('Header.TLabel', background=Config.COLOR_NAVY_PROFUNDO, foreground=Config.COLOR_BLANCO, font=('Helvetica', 18, 'bold'))
-        self.style.configure('Gold.TButton', background=Config.COLOR_DORADO, foreground=Config.COLOR_NAVY_PROFUNDO, font=('Helvetica', 12, 'bold'))
-        self.style.map('Gold.TButton', background=[('active', '#b08d55')]) 
-        self.style.configure('Navy.TButton', background=Config.COLOR_NAVY_PROFUNDO, foreground=Config.COLOR_DORADO, font=('Helvetica', 12, 'bold'))
+        """Configuración avanzada de estilos."""
+        self.style = ttk.Style(theme="litera")
         
+        # Estilos de Frames
+        self.style.configure('Main.TFrame', background=Config.COLOR_CREMA_FONDO)
+        self.style.configure('Card.TFrame', background=Config.COLOR_BLANCO)
+        
+        # Encabezado Azul
+        self.style.configure('Header.TFrame', background=Config.COLOR_NAVY_PROFUNDO)
+        self.style.configure('Header.TLabel', background=Config.COLOR_NAVY_PROFUNDO, 
+                             foreground=Config.COLOR_BLANCO, font=('Helvetica', 20, 'bold'))
+        
+        # Botones Dorados (Estilo Principal)
+        self.style.configure('Gold.TButton', 
+                             background=Config.COLOR_DORADO, 
+                             foreground=Config.COLOR_NAVY_PROFUNDO, 
+                             font=('Helvetica', 11, 'bold'), 
+                             bordercolor=Config.COLOR_DORADO,
+                             padding=10)
+        self.style.map('Gold.TButton', 
+                       background=[('active', '#b08d55'), ('pressed', '#a3814d')],
+                       foreground=[('active', Config.COLOR_NAVY_PROFUNDO)])
+        
+        # Botones de Acción en Lista
+        self.style.configure('Action.TButton', font=('Helvetica', 12))
+
     def _clear_view(self):
-        """Limpia todos los widgets del frame principal."""
         for widget in self.master.winfo_children():
             widget.destroy()
-            
-    # --- LÓGICA DE MODAL GENERAL (APP) ---
-    def _show_custom_modal(self, title, message, is_confirmation=False, confirm_callback=None):
-        self.overlay = tk.Frame(self.master, bg=Config.COLOR_NAVY_PROFUNDO)
-        self.overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
-        self.overlay.lift()
-        
-        modal_width = 400
-        modal_frame = ttk.Frame(self.overlay, bootstyle='light', padding=30)
-        modal_frame.place(relx=0.5, rely=0.5, anchor='center', width=modal_width)
-        
-        ttk.Label(modal_frame, text=title, font=('Helvetica', 14, 'bold'), 
-                  foreground=Config.COLOR_NAVY_PROFUNDO, bootstyle="primary").pack(pady=(0, 10))
-        ttk.Separator(modal_frame, orient='horizontal').pack(fill='x', pady=5)
-        
-        ttk.Label(modal_frame, text=message, font=('Helvetica', 10), wraplength=modal_width-60, 
-                  justify=tk.CENTER).pack(pady=(10, 20), expand=True)
 
-        def close_modal():
-            self.overlay.destroy()
-            
-        button_frame = ttk.Frame(modal_frame)
-        button_frame.pack(pady=10)
-        
-        if is_confirmation:
-            def confirmed():
-                close_modal()
-                if confirm_callback:
-                    confirm_callback()
-            ttk.Button(button_frame, text="Confirmar", command=confirmed, 
-                       bootstyle="danger" if "Eliminar" in title else "success").pack(side='left', padx=10, ipadx=10)
-            ttk.Button(button_frame, text="Cancelar", command=close_modal, bootstyle="secondary").pack(side='left', padx=10, ipadx=10)
-        else:
-            ttk.Button(button_frame, text="Aceptar", command=close_modal, bootstyle="primary").pack(padx=10, ipadx=20)
-
-    def _show_info_modal(self, title, message):
-        self._show_custom_modal(title, message, is_confirmation=False)
-        
-    def _show_confirmation_modal(self, title, message, callback_on_confirm):
-        self._show_custom_modal(title, message, is_confirmation=True, confirm_callback=callback_on_confirm)
-
-
-# ##################################################################################
-    # ### SECCIÓN NUEVA: LÓGICA DE LA VENTANA DE EQUIPO (SOLICITUD DE IMAGEN)       ###
-    # ##################################################################################
-    
+    # =========================================================================
+    # --- MODAL DE EQUIPO ---
+    # =========================================================================
     def _show_team_modal(self):
-        """
-        Muestra la ventana informativa del equipo de trabajo
-        """
-        # 1. Overlay (Fondo oscuro total)
         team_overlay = tk.Frame(self.master, bg=Config.TEAM_BG_DARK)
         team_overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
         team_overlay.lift()
 
-        # Botón para cerrar (X en la esquina superior derecha)
-        close_btn = tk.Button(team_overlay, text="✕", bg=Config.TEAM_BG_DARK, fg=Config.COLOR_BLANCO,
-                              font=("Arial", 16, "bold"), bd=0, cursor="hand2",
-                              command=team_overlay.destroy)
-        close_btn.place(relx=0.97, rely=0.02, anchor='ne')
+        tk.Button(team_overlay, text="✕", bg=Config.TEAM_BG_DARK, fg=Config.COLOR_BLANCO,
+                  font=("Arial", 16, "bold"), bd=0, cursor="hand2",
+                  command=team_overlay.destroy).place(relx=0.97, rely=0.0001, anchor='ne')
 
-        # 2. Contenedor Principal (Centrado)
-        # Usamos un Frame que contendrá las dos mitades (Izquierda y Derecha)
         container = tk.Frame(team_overlay, bg=Config.TEAM_BG_DARK)
-        container.place(relx=0.5, rely=0.5, anchor='center', relwidth=0.9, relheight=0.8)
+        container.place(relx=0.5, rely=0.6, anchor='center', relwidth=0.9, relheight=0.85)
+        
+        # Grid layout
+        container.grid_columnconfigure(0, weight=40, uniform="group") 
+        container.grid_columnconfigure(1, weight=60, uniform="group") 
+        container.grid_rowconfigure(0, weight=1)
 
-        # --- COLUMNA IZQUIERDA (Logo y Fondo Crema) ---
+        # --- IZQUIERDA: LOGO ---
         left_frame = tk.Frame(container, bg=Config.TEAM_BG_CREAM)
-        left_frame.place(relx=0, rely=0, relwidth=0.4, relheight=1)
+        left_frame.grid(row=0, column=0, sticky="nsew")
 
-        # Intentar cargar la imagen "logo_empresa.png"
-        try:
-            # NOTA: Asegúrate de tener 'logo_empresa.png' en la misma carpeta del script
-            if os.path.exists("logo_empresa.png"):
-                self.logo_img = tk.PhotoImage(file="logo_empresa.png")
-                # Redimensionar si es muy grande (opcional, ajusta subsample según tamaño real)
-                # self.logo_img = self.logo_img.subsample(2, 2) 
-                logo_label = tk.Label(left_frame, image=self.logo_img, bg=Config.TEAM_BG_CREAM)
-                logo_label.pack(expand=True)
-            else:
-                # Placeholder si no hay imagen
-                tk.Label(left_frame, text="[AQUÍ VA EL LOGO]\nGuarda tu imagen como\n'logo_empresa.png'", 
-                         bg=Config.TEAM_BG_CREAM, fg=Config.COLOR_NAVY_PROFUNDO, font=("Helvetica", 12)).pack(expand=True)
-        except Exception as e:
-             tk.Label(left_frame, text=f"Error cargando imagen:\n{e}", bg=Config.TEAM_BG_CREAM).pack(expand=True)
+        logo_container = tk.Frame(left_frame, bg=Config.TEAM_BG_CREAM)
+        logo_container.pack(expand=True, fill='both', padx=20, pady=20)
+        
+        logo_label = tk.Label(logo_container, bg=Config.TEAM_BG_CREAM)
+        logo_label.place(relx=0.5, rely=0.3, anchor='center')
 
-        tk.Label(left_frame, text="NORMA INGENS ROBUR", font=("Times New Roman", 16, "bold"), 
-                 bg=Config.TEAM_BG_CREAM, fg=Config.COLOR_NAVY_PROFUNDO).place(relx=0.5, rely=0.85, anchor='center')
+        def update_logo_size(event):
+            new_width = event.width - 40
+            new_height = event.height - 40
+            if new_width > 0 and new_height > 0:
+                resized_img = self.team_logo_adapter.resize_image(new_width, new_height)
+                if resized_img:
+                    logo_label.config(image=resized_img)
+                else:
+                    logo_label.config(text="NORMA INGENS ROBUR", fg="black")
 
+        logo_container.bind("<Configure>", update_logo_size)
 
-        # --- COLUMNA DERECHA (Información del Equipo - Fondo Azul Oscuro) ---
+        # --- DERECHA: INFO ---
         right_frame = tk.Frame(container, bg=Config.TEAM_BG_DARK)
-        right_frame.place(relx=0.4, rely=0, relwidth=0.6, relheight=1)
-        
-        # Título superior "EQUIPO DE TRABAJO" con la barra
-        title_box = tk.Frame(right_frame, bg=Config.TEAM_BG_DARK, highlightbackground=Config.COLOR_DORADO, highlightthickness=1)
-        title_box.pack(fill='x', padx=40, pady=(40, 20))
-        
-        # Icono corona pequeño y texto
-        tk.Label(title_box, text="👑", bg=Config.TEAM_BG_DARK, fg=Config.COLOR_DORADO, font=("Arial", 14)).pack(side='left', padx=10, pady=10)
-        tk.Label(title_box, text="EQUIPO DE TRABAJO", bg=Config.TEAM_BG_DARK, fg=Config.COLOR_BLANCO, font=("Helvetica", 14)).pack(side='left', pady=10)
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(20, 0))
 
-        # Función helper para crear los bloques de texto del equipo
-        def create_role_block(parent, icon_char, role_title, names_list):
-            block = tk.Frame(parent, bg=Config.TEAM_BG_DARK)
-            block.pack(pady=15)
+        # Título
+        title_box = tk.Frame(right_frame, bg=Config.TEAM_BG_DARK, highlightbackground=Config.TEAM_TEXT_GOLD, highlightthickness=1)
+        title_box.pack(fill='x', pady=(0, 20))
+        
+        tk.Label(title_box, text=Config.ICON_CROWN, bg=Config.TEAM_BG_DARK, fg=Config.TEAM_TEXT_GOLD, font=("Arial", 22)).pack(side='left', padx=10, pady=10)
+        tk.Label(title_box, text="EQUIPO DE TRABAJO", bg=Config.TEAM_BG_DARK, fg=Config.COLOR_DORADO, font=("Helvetica", 18, "bold")).pack(side='left', pady=10)
+
+        # Contenido
+        info_content = tk.Frame(right_frame, bg=Config.TEAM_BG_DARK)
+        info_content.pack(fill='both', expand=True)
+
+        def create_block(icon, role, name):
+            block = tk.Frame(info_content, bg=Config.TEAM_BG_DARK)
+            block.pack(pady=12, fill='x')
             
-            # Icono circular simulado
-            tk.Label(block, text=icon_char, font=("Segoe UI Emoji", 24), bg=Config.TEAM_BG_DARK, fg=Config.TEAM_TEXT_GOLD).pack()
+            # Icono
+            tk.Label(block, text=icon, bg=Config.TEAM_BG_DARK, fg=Config.TEAM_TEXT_GOLD, font=("Arial", 28)).pack(side='left', padx=(0, 20), anchor='n')
             
-            # Título del Rol
-            tk.Label(block, text=role_title, font=("Helvetica", 12, "bold"), bg=Config.TEAM_BG_DARK, fg=Config.COLOR_BLANCO).pack(pady=(5, 5))
+            # Textos
+            txt_frame = tk.Frame(block, bg=Config.TEAM_BG_DARK)
+            txt_frame.pack(side='left', fill='x', expand=True)
             
-            # Nombres
-            for name in names_list:
-                tk.Label(block, text=name, font=("Helvetica", 11, "bold"), bg=Config.TEAM_BG_DARK, fg=Config.COLOR_BLANCO).pack()
+            tk.Label(txt_frame, text=role, bg=Config.TEAM_BG_DARK, fg=Config.TEAM_TEXT_WHITE, font=("Helvetica", 12, "bold"), anchor='w').pack(fill='x')
+            
+            for n in name.split('\n'):
+                tk.Label(txt_frame, text=n, bg=Config.TEAM_BG_DARK, fg="gray85", font=("Helvetica", 11), anchor='w').pack(fill='x')
+            
+            ttk.Separator(info_content, orient='horizontal', bootstyle="secondary").pack(fill='x', pady=5)
 
-        # Bloque 1: Product Owner
-        create_role_block(right_frame, "👤", "PRODUCT OWNER", ["GENDER ALEXANDER CAMACHO GARCIA"])
-        
-        # Bloque 2: Scrum Master
-        create_role_block(right_frame, "🌱", "SCRUM MASTER", ["YULY PAOLA FLOREZ LOPEZ"])
-        
-        # Bloque 3: Equipo de Desarrollo
-        create_role_block(right_frame, "🚀", "EQUIPO DE DESARROLLO", ["EMMANUEL DIAZ GUTIERREZ", "ALFREDO MANUEL RODRIGUEZ LUQUETA"])
+        create_block(Config.ICON_CROWN, "PRODUCT OWNER", "GENDER ALEXANDER CAMACHO GARCIA")
+        create_block("⭐", "SCRUM MASTER", "YULY PAOLA FLOREZ LOPEZ")
+        create_block("💻", "EQUIPO DE DESARROLLO", "EMMANUEL DIAZ GUTIERREZ\nALFREDO MANUEL RODRIGUEZ LUQUETA")
 
-    # ##################################################################################
-    # ### FIN SECCIÓN NUEVA                                                         ###
-    # ##################################################################################
-    def _get_current_contacts(self, search_text=None):
-        if search_text and search_text != "Buscar contacto...":
-            return [c for c in MOCK_CONTACTS if search_text.lower() in c.nombre.lower()]
-        return MOCK_CONTACTS
-
-    # --- VISTA 1: LISTA PRINCIPAL ---
+    # =========================================================================
+    # --- VISTA PRINCIPAL ---
+    # =========================================================================
     def show_main_view(self):
         self._clear_view()
         self.master.configure(bg=Config.COLOR_CREMA_FONDO)
         
-        # 1. ENCABEZADO SUPERIOR
-        header_frame = ttk.Frame(self.master, style='Header.TFrame', height=70, padding=10)
+        # 1. ENCABEZADO
+        header_frame = ttk.Frame(self.master, style='Header.TFrame', height=80, padding=15)
         header_frame.pack(fill='x')
         
-        ttk.Label(header_frame, text="👑", style='Header.TLabel', foreground=Config.COLOR_DORADO).pack(side='left', padx=15)
-        ttk.Label(header_frame, text="AGENDA NORMA INGENS ROBUR", style='Header.TLabel').pack(side='left', padx=20)
-        
+        tk.Label(header_frame, text=Config.ICON_CROWN, bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_DORADO, font=("Arial", 24)).pack(side='left', padx=10)
+        ttk.Label(header_frame, text="AGENDA NORMA INGENS ROBUR", style='Header.TLabel').pack(side='left', padx=5)
+
         # 2. BARRA DE BÚSQUEDA
-        search_frame = ttk.Frame(self.master, style='Main.TFrame', padding=20)
-        search_frame.pack(fill='x')
+        search_container = ttk.Frame(self.master, style='Main.TFrame', padding=(175, 30, 20, 10))
+        search_container.pack(fill='x')
         
-        search_var = tk.StringVar(value="Buscar contacto...")
-        search_entry = ttk.Entry(search_frame, textvariable=search_var, font=('Helvetica', 12), width=50, bootstyle="primary")
+        search_var = tk.StringVar()
+        search_entry = ttk.Entry(search_container, textvariable=search_var, font=('Helvetica', 12), width=50, bootstyle="primary")
+        search_entry.pack(side='left', padx=(0, 10), ipady=6)
         
-        def on_search(event=None):
-            self._refresh_list_container(scrolled_frame, self._get_current_contacts(search_var.get()))
-            
-        def clear_placeholder(event):
-            if search_entry.get() == "Buscar contacto...":
-                search_entry.delete(0, END)
-                search_entry.config(foreground='black')
-            
-        def reset_placeholder(event):
-            if not search_entry.get():
-                search_entry.insert(0, "Buscar contacto...")
-                search_entry.config(foreground='gray')
-            
-        search_entry.bind("<FocusIn>", clear_placeholder)
-        search_entry.bind("<FocusOut>", reset_placeholder)
-        search_entry.bind("<Return>", on_search)
-        search_entry.pack(pady=5, ipady=5, side='left', expand=True, padx=(0, 10))
-        search_entry.config(foreground='gray')
+        def on_search(*args):
+            self._populate_list(scrolled_frame, search_var.get())
         
-        ttk.Button(search_frame, text=Config.ICON_BUSCAR, command=on_search, bootstyle="primary").pack(side='left')
+        search_entry.bind("<KeyRelease>", on_search)
+        ttk.Button(search_container, text=Config.ICON_BUSCAR, command=on_search, bootstyle="primary").pack(side='left', ipady=2)
 
-        # 3. CONTENEDOR DE LA LISTA
-        list_container = ttk.Frame(self.master, style='Main.TFrame', padding=(50, 0, 50, 0))
-        list_container.pack(fill='both', expand=True)
+        # 3. LISTA DE CONTACTOS
+        list_area = ttk.Frame(self.master, style='Main.TFrame', padding=(40, 10, 40, 0))
+        list_area.pack(fill='both', expand=True)
 
-        scrolled_frame = ScrolledFrame(list_container, autohide=True, bootstyle="light")
-        scrolled_frame.pack(fill='both', expand=True)
+        scrolled_frame = ScrolledFrame(list_area, autohide=True, bootstyle="round")
+        scrolled_frame.pack(fill='both', expand=True, pady=(0, 80)) 
+        
+        # --- CORRECCIÓN DEL ERROR ---
+        # Usamos style='Main.TFrame' en lugar de background=...
         scrolled_frame.container.configure(style='Main.TFrame')
         
-        # 4. ITERAR Y CREAR TARJETAS
-        self._refresh_list_container(scrolled_frame, self._get_current_contacts())
-            
-        # 5. BOTÓN FLOTANTE (AGREGAR)
-        add_button = tk.Button(self.master, text="+", bg=Config.COLOR_DORADO, fg=Config.COLOR_NAVY_PROFUNDO, 
-                               font=('Arial', 24, 'bold'), width=3, height=1, bd=0, relief='raised',
-                               cursor="hand2", command=self.show_new_contact_form)
-        add_button.place(relx=0.95, rely=0.95, anchor='se')
+        self._populate_list(scrolled_frame)
 
-        # ### NUEVO CODIGO: BOTÓN FLOTANTE INFO EQUIPO (Inferior Izquierda) ###
-        info_button = tk.Button(self.master, text=Config.ICON_INFO, bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_DORADO,
-                                font=('Arial', 20, 'bold'), width=3, height=1, bd=0, relief='raised',
-                                cursor="hand2", command=self._show_team_modal)
-        info_button.place(relx=0.03, rely=0.95, anchor='sw')
-        # ### FIN NUEVO CODIGO ###
+        # 4. BOTONES FLOTANTES
+        tk.Button(self.master, text="+", bg=Config.COLOR_DORADO, fg=Config.COLOR_NAVY_PROFUNDO, 
+                  font=('Arial', 24, 'bold'), width=3, height=1, bd=0, relief='raised', cursor="hand2",
+                  activebackground="#b08d55",
+                  command=lambda: self.show_contact_form(is_new=True)).place(relx=0.96, rely=0.96, anchor='se')
 
-    def _refresh_list_container(self, list_container, contacts_list):
-            for widget in list_container.container.winfo_children():
-                widget.destroy()
+        tk.Button(self.master, text=Config.ICON_INFO, bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_DORADO,
+                  font=('Arial', 24, 'bold'), width=3, height=1, bd=0, relief='raised', cursor="hand2",
+                  activebackground="#2B3D5F",
+                  command=self._show_team_modal).place(relx=0.04, rely=0.96, anchor='sw')
 
-            if not contacts_list:
-                ttk.Label(list_container.container, text="No se encontraron contactos.", style='Main.TFrame', font=('Helvetica', 14)).pack(pady=50)
-            else:
-                for contact in contacts_list:
-                    self.create_contact_card(list_container, contact)
+    def _populate_list(self, scroll_widget, query=None):
+        for widget in scroll_widget.container.winfo_children():
+            widget.destroy()
 
-    def create_contact_card(self, parent_widget, contact):
-        card = tk.Frame(parent_widget.container, bg=Config.COLOR_BLANCO, padx=20, pady=15, 
-                        relief='flat', borderwidth=1, 
-                        highlightbackground=Config.COLOR_DORADO, highlightthickness=1)
-        card.pack(fill='x', padx=10, pady=8)
-        
-        card.bind("<Button-1>", lambda e: self.show_contact_detail(contact))
-        
-        lbl_initials = tk.Label(card, text=contact.get_initials(), bg=Config.COLOR_DORADO, fg=Config.COLOR_NAVY_PROFUNDO, 
-                                font=('Helvetica', 14, 'bold'), width=5, height=2)
-        lbl_initials.pack(side='left', padx=(0, 20))
-        lbl_initials.bind("<Button-1>", lambda e: self.show_contact_detail(contact))
+        contacts = db.obtener_contactos(query) if query else db.obtener_contactos()
 
-        info_frame = tk.Frame(card, bg=Config.COLOR_BLANCO) 
-        info_frame.pack(side='left', fill='both', expand=True)
-        
-        lbl_name = ttk.Label(info_frame, text=contact.nombre, font=('Helvetica', 14, 'bold'), foreground=Config.COLOR_NAVY_PROFUNDO, background=Config.COLOR_BLANCO)
-        lbl_name.pack(anchor='w')
-        
-        lbl_detail = ttk.Label(info_frame, text=contact.email, font=('Helvetica', 10), foreground='gray', background=Config.COLOR_BLANCO)
-        lbl_detail.pack(anchor='w')
-
-        for w in [info_frame, lbl_name, lbl_detail]:
-            w.bind("<Button-1>", lambda e: self.show_contact_detail(contact))
-
-        ttk.Button(card, text=Config.ICON_LLAMAR, bootstyle="outline-primary", width=3, 
-                   command=lambda: self._show_info_modal("Acción", f"Simulando llamada a {contact.telefono}")).pack(side='right', padx=5)
-        ttk.Button(card, text=Config.ICON_MENSAJE, bootstyle="outline-warning", width=3,
-                   command=lambda: self._show_info_modal("Acción", f"Abriendo correo para {contact.email}")).pack(side='right', padx=5)
-
-    def show_new_contact_form(self):
-        self._clear_view()
-        self.master.configure(bg=Config.COLOR_CREMA_FONDO)
-        self._create_contact_form_view(title="NUEVO CONTACTO")
-
-    def show_contact_detail(self, contact):
-        self._clear_view()
-        self.selected_contact = contact
-        self.master.configure(bg=Config.COLOR_CREMA_FONDO)
-
-        header_frame = ttk.Frame(self.master, style='Header.TFrame', height=70, padding=10)
-        header_frame.pack(fill='x')
-        tk.Button(header_frame, text=f"{Config.ICON_ATRAS} Volver", command=self.show_main_view, bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_BLANCO, bd=0, font=('Helvetica', 12)).pack(side='left', padx=15)
-        ttk.Label(header_frame, text="DETALLE", style='Header.TLabel').pack(side='left', padx=50)
-        ttk.Button(header_frame, text=f"{Config.ICON_EDITAR} Editar", style='Gold.TButton', command=lambda: self.show_edit_contact_form(contact)).pack(side='right', padx=15)
-
-        profile_frame = tk.Frame(self.master, bg=Config.COLOR_BLANCO, padx=50, pady=30, relief='raised')
-        profile_frame.pack(pady=30, padx=50, fill='x')
-        tk.Label(profile_frame, text=contact.get_initials(), bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_DORADO, font=('Helvetica', 35, 'bold'), width=4, height=2).pack(pady=10)
-        ttk.Label(profile_frame, text=contact.nombre, font=('Helvetica', 22, 'bold'), background=Config.COLOR_BLANCO, foreground=Config.COLOR_NAVY_PROFUNDO).pack(pady=5)
-        
-        action_frame = tk.Frame(profile_frame, bg=Config.COLOR_BLANCO, pady=20)
-        action_frame.pack()
-        ttk.Button(action_frame, text=f"{Config.ICON_LLAMAR} Llamar", style='Gold.TButton', width=15, 
-                   command=lambda: self._show_info_modal("Acción", f"Simulando llamada a {contact.telefono}")).pack(side='left', padx=10)
-        ttk.Button(action_frame, text=f"{Config.ICON_MENSAJE} Correo", style='Gold.TButton', width=15,
-                   command=lambda: self._show_info_modal("Acción", f"Abriendo correo para {contact.email}")).pack(side='left', padx=10)
-
-        info_frame = ttk.Frame(self.master, style='Main.TFrame', padding=(50, 20, 50, 20))
-        info_frame.pack(fill='both', expand=True)
-
-        def create_detail_row(label, value):
-            f = ttk.Frame(info_frame, style='Main.TFrame')
-            f.pack(fill='x', pady=8)
-            ttk.Label(f, text=label, font=('Helvetica', 10, 'bold'), foreground=Config.COLOR_NAVY_PROFUNDO, background=Config.COLOR_CREMA_FONDO).pack(anchor='w')
-            ttk.Label(f, text=value, font=('Helvetica', 16), background=Config.COLOR_CREMA_FONDO).pack(anchor='w')
-            ttk.Separator(f, orient='horizontal').pack(fill='x', pady=5)
-
-        create_detail_row("ID de Contacto", str(contact.id))
-        create_detail_row("Teléfono Móvil", contact.telefono)
-        create_detail_row("Correo Electrónico", contact.email)
-
-        ttk.Button(self.master, text=f"{Config.ICON_ELIMINAR} Eliminar Contacto", bootstyle="danger", width=30, 
-                   command=lambda: self.handle_delete_contact(contact)).pack(pady=20)
-                   
-    def show_edit_contact_form(self, contact):
-        self._clear_view()
-        self.master.configure(bg=Config.COLOR_CREMA_FONDO)
-        self._create_contact_form_view(title="EDITAR CONTACTO", contact_to_edit=contact)
-
-    def _create_contact_form_view(self, title, contact_to_edit=None):
-        header_frame = ttk.Frame(self.master, style='Header.TFrame', height=70, padding=10)
-        header_frame.pack(fill='x')
-        tk.Button(header_frame, text=f"{Config.ICON_ATRAS} Volver", command=self.show_main_view, bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_BLANCO, bd=0, font=('Helvetica', 12)).pack(side='left', padx=15)
-        ttk.Label(header_frame, text=title, style='Header.TLabel').pack(side='left', padx=50)
-
-        form_container = ttk.Frame(self.master, style='Main.TFrame', padding=40)
-        form_container.pack(fill='both', expand=True)
-        
-        self.form_vars = {
-            "nombre": tk.StringVar(value=contact_to_edit.nombre if contact_to_edit else ""), 
-            "telefono": tk.StringVar(value=contact_to_edit.telefono if contact_to_edit else ""), 
-            "email": tk.StringVar(value=contact_to_edit.email if contact_to_edit else "")
-        }
-        
-        def create_bootstrap_input(parent, label_text, var):
-            container = ttk.Frame(parent, style='Main.TFrame')
-            container.pack(fill='x', pady=10)
-            ttk.Label(container, text=label_text, font=('Helvetica', 11, 'bold'), background=Config.COLOR_CREMA_FONDO, foreground=Config.COLOR_NAVY_PROFUNDO).pack(anchor='w')
-            entry = ttk.Entry(container, textvariable=var, font=('Helvetica', 12), bootstyle="primary")
-            entry.pack(fill='x', pady=(5, 0))
-            return entry
-
-        create_bootstrap_input(form_container, "Nombre Completo", self.form_vars["nombre"])
-        create_bootstrap_input(form_container, "Teléfono", self.form_vars["telefono"])
-        create_bootstrap_input(form_container, "Correo Electrónico", self.form_vars["email"])
-
-        save_command = lambda: self.handle_save_contact(contact_to_edit)
-        ttk.Button(form_container, text=f"{Config.ICON_GUARDAR} GUARDAR CONTACTO", style='Gold.TButton', width=30, 
-                   command=save_command).pack(pady=30)
-                   
-        if contact_to_edit:
-             ttk.Label(form_container, text=f"ID de Contacto: {contact_to_edit.id}", font=('Helvetica', 9), background=Config.COLOR_CREMA_FONDO, foreground='gray').pack(pady=5)
-
-    def handle_save_contact(self, contact_to_edit=None):
-        name = self.form_vars["nombre"].get().strip()
-        phone = self.form_vars["telefono"].get().strip()
-        email = self.form_vars["email"].get().strip()
-
-        if not name or not phone:
-            self._show_info_modal("Error de Validación", "Nombre y Teléfono son obligatorios.")
+        if not contacts:
+            tk.Label(scroll_widget.container, text="No se encontraron contactos.", 
+                     bg=Config.COLOR_CREMA_FONDO, fg="gray", font=('Helvetica', 14)).pack(pady=50)
             return
 
-        if contact_to_edit:
-            self._show_info_modal("CONEXIÓN PENDIENTE", f"MODIFICAR Contacto (ID: {contact_to_edit.id}) listo para implementar.")
-        else:
-            self._show_info_modal("CONEXIÓN PENDIENTE", f"INSERTAR Nuevo Contacto ({name}) listo para implementar.")
-        
-        self.show_main_view() 
+        for contact in contacts:
+            self._create_contact_card(scroll_widget.container, contact)
 
-    def handle_delete_contact(self, contact):
-        def perform_deletion():
-            self._show_info_modal("CONEXIÓN PENDIENTE", f"ELIMINAR Contacto con ID: {contact.id} listo para implementar.")
+    def _create_contact_card(self, parent, data):
+        c_id, c_name, c_tel, c_email = data
+        
+        # Tarjeta
+        card = tk.Frame(parent, bg=Config.COLOR_BLANCO, padx=20, pady=15)
+        card.config(highlightbackground=Config.COLOR_DORADO, highlightthickness=1)
+        card.pack(fill='x', pady=8, padx=5)
+
+        card.bind("<Button-1>", lambda e: self.show_contact_detail(data))
+
+        # Avatar
+        lbl_avatar = tk.Label(card, text=get_initials(c_name), bg=Config.COLOR_DORADO, fg=Config.COLOR_NAVY_PROFUNDO,
+                              font=('Helvetica', 14, 'bold'), width=5, height=2)
+        lbl_avatar.pack(side='left', padx=(0, 20))
+        lbl_avatar.bind("<Button-1>", lambda e: self.show_contact_detail(data))
+
+        # Info
+        info_frame = tk.Frame(card, bg=Config.COLOR_BLANCO)
+        info_frame.pack(side='left', fill='both', expand=True)
+        
+        lbl_name = tk.Label(info_frame, text=c_name, font=('Helvetica', 14, 'bold'), 
+                            bg=Config.COLOR_BLANCO, fg=Config.COLOR_NAVY_PROFUNDO)
+        lbl_name.pack(anchor='w')
+        
+        lbl_sub = tk.Label(info_frame, text=c_email, font=('Helvetica', 10), 
+                           bg=Config.COLOR_BLANCO, fg="gray")
+        lbl_sub.pack(anchor='w')
+
+        for w in [info_frame, lbl_name, lbl_sub]:
+            w.bind("<Button-1>", lambda e: self.show_contact_detail(data))
+
+        # Botones Acción
+        ttk.Button(card, text=Config.ICON_ELIMINAR, bootstyle="outline-danger", style='Action.TButton', width=4,
+                   command=lambda: self.handle_delete_contact(c_id, c_name)).pack(side='right', padx=5)
+        
+        ttk.Button(card, text=Config.ICON_EDITAR, bootstyle="outline-primary", style='Action.TButton', width=4,
+                   command=lambda: self.show_contact_form(False, data)).pack(side='right', padx=5)
+
+    # =========================================================================
+    # --- VISTA DETALLE Y FORMULARIO ---
+    # =========================================================================
+    def show_contact_detail(self, data):
+        c_id, c_name, c_tel, c_email = data
+        self._clear_view()
+        self.master.configure(bg=Config.COLOR_CREMA_FONDO)
+
+        header = ttk.Frame(self.master, style='Header.TFrame', height=70, padding=10)
+        header.pack(fill='x')
+        tk.Button(header, text=f"{Config.ICON_ATRAS} Volver", command=self.show_main_view,
+                  bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_BLANCO, bd=0, font=('Helvetica', 12, 'bold'), cursor="hand2").pack(side='left', padx=15)
+        ttk.Label(header, text="DETALLE DE CONTACTO", style='Header.TLabel').pack(side='left', padx=30)
+
+        profile_panel = tk.Frame(self.master, bg=Config.COLOR_BLANCO, padx=40, pady=30, relief='raised', bd=1)
+        profile_panel.pack(pady=30, padx=50, fill='x')
+
+        tk.Label(profile_panel, text=get_initials(c_name), bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_DORADO,
+                 font=('Helvetica', 35, 'bold'), width=4, height=2).pack(pady=10)
+        
+        tk.Label(profile_panel, text=c_name, font=('Helvetica', 22, 'bold'), 
+                 bg=Config.COLOR_BLANCO, fg=Config.COLOR_NAVY_PROFUNDO).pack(pady=5)
+
+        action_bar = tk.Frame(profile_panel, bg=Config.COLOR_BLANCO)
+        action_bar.pack(pady=15)
+        
+        ttk.Button(action_bar, text=f"{Config.ICON_EDITAR} Editar", style='Gold.TButton', width=15,
+                   command=lambda: self.show_contact_form(False, data)).pack(side='left', padx=10)
+        
+        ttk.Button(action_bar, text=f"{Config.ICON_ELIMINAR} Eliminar", bootstyle="danger", width=15,
+                   command=lambda: self.handle_delete_contact(c_id, c_name)).pack(side='left', padx=10)
+
+        details_frame = ttk.Frame(self.master, style='Main.TFrame', padding=(60, 10))
+        details_frame.pack(fill='both', expand=True)
+
+        def add_row(label, value):
+            row = ttk.Frame(details_frame, style='Main.TFrame')
+            row.pack(fill='x', pady=8)
+            ttk.Label(row, text=label, font=('Helvetica', 10, 'bold'), foreground=Config.COLOR_NAVY_PROFUNDO, background=Config.COLOR_CREMA_FONDO).pack(anchor='w')
+            ttk.Label(row, text=value, font=('Helvetica', 14), background=Config.COLOR_CREMA_FONDO).pack(anchor='w')
+            ttk.Separator(row, orient='horizontal').pack(fill='x', pady=5)
+
+        add_row("Teléfono Móvil", c_tel)
+        add_row("Correo Electrónico", c_email)
+        add_row("ID Sistema", str(c_id))
+
+    def show_contact_form(self, is_new=False, contact_data=None):
+        c_id, c_name, c_tel, c_email = (None, "", "", "")
+        if contact_data:
+            c_id, c_name, c_tel, c_email = contact_data
+            
+        title = "NUEVO CONTACTO" if is_new else "EDITAR CONTACTO"
+        self._clear_view()
+        self.master.configure(bg=Config.COLOR_CREMA_FONDO)
+
+        header = ttk.Frame(self.master, style='Header.TFrame', height=70, padding=10)
+        header.pack(fill='x')
+        tk.Button(header, text=f"{Config.ICON_ATRAS} Volver", command=self.show_main_view,
+                  bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_BLANCO, bd=0, font=('Helvetica', 12, 'bold')).pack(side='left', padx=15)
+        ttk.Label(header, text=title, style='Header.TLabel').pack(side='left', padx=30)
+
+        form_frame = ttk.Frame(self.master, style='Main.TFrame', padding=50)
+        form_frame.pack(fill='both', expand=True)
+
+        vars = {
+            "nombre": tk.StringVar(value=c_name),
+            "telefono": tk.StringVar(value=c_tel),
+            "email": tk.StringVar(value=c_email)
+        }
+
+        def create_input(lbl, var):
+            c = ttk.Frame(form_frame, style='Main.TFrame')
+            c.pack(fill='x', pady=12)
+            ttk.Label(c, text=lbl, font=('Helvetica', 11, 'bold'), foreground=Config.COLOR_NAVY_PROFUNDO, background=Config.COLOR_CREMA_FONDO).pack(anchor='w')
+            ttk.Entry(c, textvariable=var, font=('Helvetica', 12), bootstyle="primary").pack(fill='x', pady=(5,0), ipady=3)
+
+        create_input("Nombre Completo *", vars["nombre"])
+        create_input("Teléfono *", vars["telefono"])
+        create_input("Correo Electrónico", vars["email"])
+
+        def save():
+            n = vars["nombre"].get().strip()
+            t = vars["telefono"].get().strip()
+            e = vars["email"].get().strip()
+            
+            if not n or not t:
+                self._show_modal("Error", "Nombre y Teléfono son obligatorios.")
+                return
+            if not val.validar_telefono(t):
+                self._show_modal("Error", "Teléfono inválido.")
+                return
+
+            if is_new:
+                db.insertar_contacto(n, t, e)
+                self._show_modal("Éxito", "Contacto guardado.")
+            else:
+                db.actualizar_contacto(c_id, n, t, e)
+                self._show_modal("Éxito", "Contacto actualizado.")
+            
             self.show_main_view()
 
-        self._show_confirmation_modal(
-            "Eliminar Contacto", 
-            f"¿Está seguro de que desea eliminar a {contact.nombre} (ID: {contact.id})? Esta acción es irreversible.",
-            perform_deletion)
+        ttk.Button(form_frame, text=f"{Config.ICON_GUARDAR} GUARDAR", style='Gold.TButton', width=20, command=save).pack(pady=40)
 
+    # --- MODALES ---
+    def _show_modal(self, title, msg):
+        messagebox.showinfo(title, msg)
 
-if __name__ == "__main__":
-    root = ttk.Window(themename="litera")
-    app = AgendaApp(root)
-    root.mainloop()
+    def handle_delete_contact(self, c_id, c_name):
+        if messagebox.askyesno("Eliminar", f"¿Eliminar a {c_name}?"):
+            db.eliminar_contacto(c_id)
+            self.show_main_view()
+
