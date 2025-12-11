@@ -6,6 +6,7 @@ import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.widgets.scrolled import ScrolledFrame
 from PIL import Image, ImageTk 
+from utils.validaciones import *
 
 # --- CONFIGURACIÓN DE RUTAS ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,32 +14,9 @@ project_root = os.path.dirname(current_dir)
 sys.path.append(project_root)
 
 # --- MOCKUP DE BASE DE DATOS Y UTILIDADES ---
-try:
-    from database import agenda_database as db 
-    from utils import validaciones as val 
-except ImportError:
-    class db:
-        @staticmethod
-        def crear_tabla(): pass
-        @staticmethod
-        def obtener_contactos(q=None): 
-            # Datos de prueba
-            return [
-                (1, "Juan Perez", "3001234567", "juan.perez@ejemplo.com"), 
-                (2, "Maria Lopez", "3109876543", "maria.design@ejemplo.com"),
-                (3, "Carlos Rodriguez", "3155558888", "carlos.dev@ejemplo.com")
-            ]
-        @staticmethod
-        def insertar_contacto(n,p,e): pass
-        @staticmethod
-        def actualizar_contacto(id,n,p,e): pass
-        @staticmethod
-        def eliminar_contacto(id): pass
-    class val:
-        @staticmethod
-        def validar_telefono(t): return t.isdigit() and len(t) in [7, 10]
-        @staticmethod
-        def validar_email(e): return "@" in e
+from database import agenda_database as db 
+from utils.validaciones import * 
+
 
 # --- 1. CONSTANTES Y CONFIGURACIÓN ESTÉTICA ---
 class Config:
@@ -412,7 +390,7 @@ class AgendaApp:
             if not n or not t:
                 self._show_modal("Error", "Nombre y Teléfono son obligatorios.")
                 return
-            if not val.validar_telefono(t):
+            if not validar_telefono(t):
                 self._show_modal("Error", "Teléfono inválido.")
                 return
 
