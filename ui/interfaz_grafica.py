@@ -1,3 +1,16 @@
+"""Módulo Principal de la Interfaz de Usuario (UI) de la Agenda.
+
+Este módulo implementa la interfaz gráfica de la aplicación de agenda
+utilizando Tkinter y la librería ttkbootstrap para estilos modernos.
+
+Gestiona las tres vistas principales:
+1. Vista Principal (Lista de contactos con búsqueda).
+2. Vista de Detalle de Contacto.
+3. Vista de Formulario (Creación/Edición de contacto).
+4. Vista de Acerca de (Informacion del equipo de desarrollo)
+
+Utiliza el módulo 'agenda_database' (db) para las operaciones CRUD.
+"""
 import sys
 import os
 import tkinter as tk
@@ -15,11 +28,13 @@ sys.path.append(project_root)
 
 # --- MOCKUP DE BASE DE DATOS Y UTILIDADES ---
 from database import agenda_database as db 
-from utils.validaciones import * 
-
-
-# --- 1. CONSTANTES Y CONFIGURACIÓN ESTÉTICA ---
+from utils.validaciones import * # --- 1. CONSTANTES Y CONFIGURACIÓN ESTÉTICA ---
 class Config:
+    """Clase que almacena constantes para la configuración estética de la UI.
+
+    Define la paleta de colores y los iconos utilizados en toda la aplicación
+    para mantener la consistencia visual.
+    """
     # Colores base (Paleta Original Restaurada)
     COLOR_NAVY_PROFUNDO = "#1A2B4C"       # Azul Dominante
     COLOR_DORADO = "#C59D5F"              # Acento Dorado
@@ -38,12 +53,23 @@ class Config:
     ICON_EDITAR = "✏️" 
     ICON_BUSCAR = "🔍"
     ICON_ELIMINAR = "🗑️"
-    ICON_INFO = "     ℹ️"
+    ICON_INFO = "      ℹ️"
     ICON_CROWN = "👑"
 
 # --- 2. UTILIDADES ---
 class ImageAdapter:
+    """Clase para cargar, redimensionar y gestionar imágenes con PIL y Tkinter.
+
+    Permite manejar logotipos o imágenes de la aplicación de manera eficiente
+    y con redimensionamiento dinámico.
+    """
     def __init__(self, master, image_path):
+        """Inicializa el adaptador de imágenes.
+
+        Args:
+            master: El widget padre.
+            image_path: Ruta del archivo de imagen a cargar.
+        """
         self.master = master
         self.image_path = image_path
         self.original_image = None
@@ -55,6 +81,15 @@ class ImageAdapter:
             self.image_loaded = False
 
     def resize_image(self, width, height):
+        """Redimensiona la imagen cargada manteniendo la relación de aspecto.
+
+        Args:
+            width: Ancho máximo deseado.
+            height: Alto máximo deseado.
+
+        Returns:
+            ImageTk.PhotoImage or None: La imagen redimensionada, o None si no se cargó.
+        """
         if not self.image_loaded: return None
         original_width, original_height = self.original_image.size
         ratio = min(width / original_width, height / original_height)
@@ -66,6 +101,14 @@ class ImageAdapter:
         return self.tk_image
 
 def get_initials(nombre):
+    """Calcula las iniciales de un nombre (primera letra de las dos primeras palabras).
+
+    Args:
+        nombre: La cadena de texto del nombre completo.
+
+    Returns:
+        str: Las iniciales en mayúsculas (ej. "JD"), o "NN" si está vacío.
+    """
     parts = nombre.split()
     if not parts: return "NN"
     initials = parts[0][0].upper()
@@ -74,7 +117,20 @@ def get_initials(nombre):
 
 # --- 3. CLASE PRINCIPAL ---
 class AgendaApp:
+    """Clase principal de la aplicación GUI de Agenda.
+
+    Gestiona la ventana principal, la navegación entre las tres vistas (Lista,
+    Detalle, Formulario) y la interacción con la capa de datos (db).
+    """
     def __init__(self, master):
+        """Inicializa la aplicación.
+
+        Configura la ventana, el estilo, asegura la existencia de la tabla DB 
+        y muestra la vista principal.
+
+        Args:
+            master: La instancia de la ventana raíz de Tkinter (tk.Tk).
+        """
         self.master = master
         self.master.title("AGENDA NORMA INGENS ROBUR - Escritorio")
         self.master.geometry("1100x750")
@@ -89,7 +145,7 @@ class AgendaApp:
         self.show_main_view()
         
     def _configure_styles(self):
-        """Configuración avanzada de estilos."""
+        """Configuración avanzada de estilos de ttkbootstrap."""
         self.style = ttk.Style(theme="litera")
         
         # Estilos de Frames
@@ -116,6 +172,7 @@ class AgendaApp:
         self.style.configure('Action.TButton', font=('Helvetica', 12))
 
     def _clear_view(self):
+        """Elimina todos los widgets hijos de la ventana principal para cambiar de vista."""
         for widget in self.master.winfo_children():
             widget.destroy()
 
@@ -123,6 +180,7 @@ class AgendaApp:
     # --- MODAL DE EQUIPO ---
     # =========================================================================
     def _show_team_modal(self):
+        """Muestra una ventana superpuesta (modal) con la información del equipo de desarrollo."""
         team_overlay = tk.Frame(self.master, bg=Config.TEAM_BG_DARK)
         team_overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
         team_overlay.lift()
@@ -150,6 +208,7 @@ class AgendaApp:
         logo_label.place(relx=0.5, rely=0.3, anchor='center')
 
         def update_logo_size(event):
+            """Función callback para redimensionar el logo dinámicamente con la ventana."""
             new_width = event.width - 40
             new_height = event.height - 40
             if new_width > 0 and new_height > 0:
@@ -177,6 +236,7 @@ class AgendaApp:
         info_content.pack(fill='both', expand=True)
 
         def create_block(icon, role, name):
+            """Crea un bloque de información para un rol/miembro del equipo."""
             block = tk.Frame(info_content, bg=Config.TEAM_BG_DARK)
             block.pack(pady=12, fill='x')
             
@@ -194,6 +254,7 @@ class AgendaApp:
             
             ttk.Separator(info_content, orient='horizontal', bootstyle="secondary").pack(fill='x', pady=5)
 
+        # Bloques de miembros del equipo
         create_block(Config.ICON_CROWN, "PRODUCT OWNER", "GENDER ALEXANDER CAMACHO GARCIA")
         create_block("⭐", "SCRUM MASTER", "YULY PAOLA FLOREZ LOPEZ")
         create_block("💻", "EQUIPO DE DESARROLLO", "EMMANUEL DIAZ GUTIERREZ\nALFREDO MANUEL RODRIGUEZ LUQUETA")
@@ -202,6 +263,7 @@ class AgendaApp:
     # --- VISTA PRINCIPAL ---
     # =========================================================================
     def show_main_view(self):
+        """Muestra la vista principal: encabezado, barra de búsqueda y lista de contactos."""
         self._clear_view()
         self.master.configure(bg=Config.COLOR_CREMA_FONDO)
         
@@ -221,6 +283,7 @@ class AgendaApp:
         search_entry.pack(side='left', padx=(0, 10), ipady=6)
         
         def on_search(*args):
+            """Ejecuta la búsqueda de contactos y actualiza la lista al teclear."""
             self._populate_list(scrolled_frame, search_var.get())
         
         search_entry.bind("<KeyRelease>", on_search)
@@ -233,8 +296,6 @@ class AgendaApp:
         scrolled_frame = ScrolledFrame(list_area, autohide=True, bootstyle="round")
         scrolled_frame.pack(fill='both', expand=True, pady=(0, 80)) 
         
-        # --- CORRECCIÓN DEL ERROR ---
-        # Usamos style='Main.TFrame' en lugar de background=...
         scrolled_frame.container.configure(style='Main.TFrame')
         
         self._populate_list(scrolled_frame)
@@ -251,6 +312,12 @@ class AgendaApp:
                   command=self._show_team_modal).place(relx=0.04, rely=0.96, anchor='sw')
 
     def _populate_list(self, scroll_widget, query=None):
+        """Pobla el ScrolledFrame con las tarjetas de contacto, con soporte para búsqueda.
+
+        Args:
+            scroll_widget: El widget ScrolledFrame (o su contenedor).
+            query: El texto de búsqueda para filtrar la lista (opcional).
+        """
         for widget in scroll_widget.container.winfo_children():
             widget.destroy()
 
@@ -258,23 +325,29 @@ class AgendaApp:
 
         if not contacts:
             tk.Label(scroll_widget.container, text="No se encontraron contactos.", 
-                     bg=Config.COLOR_CREMA_FONDO, fg="gray", font=('Helvetica', 14)).pack(pady=50)
+                      bg=Config.COLOR_CREMA_FONDO, fg="gray", font=('Helvetica', 14)).pack(pady=50)
             return
 
         for contact in contacts:
             self._create_contact_card(scroll_widget.container, contact)
 
     def _create_contact_card(self, parent, data):
+        """Crea y configura una tarjeta individual de contacto.
+
+        Args:
+            parent: El widget contenedor donde se insertará la tarjeta.
+            data: Tupla con los datos del contacto (id, nombre, telefono, email).
+        """
         c_id, c_name, c_tel, c_email = data
         
-        # Tarjeta
+        # Tarjeta (Frame)
         card = tk.Frame(parent, bg=Config.COLOR_BLANCO, padx=20, pady=15)
         card.config(highlightbackground=Config.COLOR_DORADO, highlightthickness=1)
         card.pack(fill='x', pady=8, padx=5)
 
         card.bind("<Button-1>", lambda e: self.show_contact_detail(data))
 
-        # Avatar
+        # Avatar (Iniciales)
         lbl_avatar = tk.Label(card, text=get_initials(c_name), bg=Config.COLOR_DORADO, fg=Config.COLOR_NAVY_PROFUNDO,
                               font=('Helvetica', 14, 'bold'), width=5, height=2)
         lbl_avatar.pack(side='left', padx=(0, 20))
@@ -285,70 +358,89 @@ class AgendaApp:
         info_frame.pack(side='left', fill='both', expand=True)
         
         lbl_name = tk.Label(info_frame, text=c_name, font=('Helvetica', 14, 'bold'), 
-                            bg=Config.COLOR_BLANCO, fg=Config.COLOR_NAVY_PROFUNDO)
+                             bg=Config.COLOR_BLANCO, fg=Config.COLOR_NAVY_PROFUNDO)
         lbl_name.pack(anchor='w')
         
         lbl_sub = tk.Label(info_frame, text=c_email, font=('Helvetica', 10), 
-                           bg=Config.COLOR_BLANCO, fg="gray")
+                            bg=Config.COLOR_BLANCO, fg="gray")
         lbl_sub.pack(anchor='w')
 
+        # Bindings para sub-widgets
         for w in [info_frame, lbl_name, lbl_sub]:
             w.bind("<Button-1>", lambda e: self.show_contact_detail(data))
 
-        # Botones Acción
+        # Botones Acción (Eliminar y Editar)
         ttk.Button(card, text=Config.ICON_ELIMINAR, bootstyle="outline-danger", style='Action.TButton', width=4,
-                   command=lambda: self.handle_delete_contact(c_id, c_name)).pack(side='right', padx=5)
+                    command=lambda: self.handle_delete_contact(c_id, c_name)).pack(side='right', padx=5)
         
         ttk.Button(card, text=Config.ICON_EDITAR, bootstyle="outline-primary", style='Action.TButton', width=4,
-                   command=lambda: self.show_contact_form(False, data)).pack(side='right', padx=5)
+                    command=lambda: self.show_contact_form(False, data)).pack(side='right', padx=5)
 
     # =========================================================================
     # --- VISTA DETALLE Y FORMULARIO ---
     # =========================================================================
     def show_contact_detail(self, data):
+        """Muestra la vista de detalle de un contacto.
+
+        Args:
+            data: Tupla con los datos del contacto (id, nombre, telefono, email).
+        """
         c_id, c_name, c_tel, c_email = data
         self._clear_view()
         self.master.configure(bg=Config.COLOR_CREMA_FONDO)
 
+        # Encabezado
         header = ttk.Frame(self.master, style='Header.TFrame', height=70, padding=10)
         header.pack(fill='x')
         tk.Button(header, text=f"{Config.ICON_ATRAS} Volver", command=self.show_main_view,
                   bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_BLANCO, bd=0, font=('Helvetica', 12, 'bold'), cursor="hand2").pack(side='left', padx=15)
         ttk.Label(header, text="DETALLE DE CONTACTO", style='Header.TLabel').pack(side='left', padx=30)
 
+        # Panel de Perfil
         profile_panel = tk.Frame(self.master, bg=Config.COLOR_BLANCO, padx=40, pady=30, relief='raised', bd=1)
         profile_panel.pack(pady=30, padx=50, fill='x')
 
+        # Avatar grande y Nombre
         tk.Label(profile_panel, text=get_initials(c_name), bg=Config.COLOR_NAVY_PROFUNDO, fg=Config.COLOR_DORADO,
-                 font=('Helvetica', 35, 'bold'), width=4, height=2).pack(pady=10)
+                  font=('Helvetica', 35, 'bold'), width=4, height=2).pack(pady=10)
         
         tk.Label(profile_panel, text=c_name, font=('Helvetica', 22, 'bold'), 
-                 bg=Config.COLOR_BLANCO, fg=Config.COLOR_NAVY_PROFUNDO).pack(pady=5)
+                  bg=Config.COLOR_BLANCO, fg=Config.COLOR_NAVY_PROFUNDO).pack(pady=5)
 
+        # Barra de Acciones (Editar/Eliminar)
         action_bar = tk.Frame(profile_panel, bg=Config.COLOR_BLANCO)
         action_bar.pack(pady=15)
         
         ttk.Button(action_bar, text=f"{Config.ICON_EDITAR} Editar", style='Gold.TButton', width=15,
-                   command=lambda: self.show_contact_form(False, data)).pack(side='left', padx=10)
+                    command=lambda: self.show_contact_form(False, data)).pack(side='left', padx=10)
         
         ttk.Button(action_bar, text=f"{Config.ICON_ELIMINAR} Eliminar", bootstyle="danger", width=15,
-                   command=lambda: self.handle_delete_contact(c_id, c_name)).pack(side='left', padx=10)
+                    command=lambda: self.handle_delete_contact(c_id, c_name)).pack(side='left', padx=10)
 
+        # Sección de Detalles
         details_frame = ttk.Frame(self.master, style='Main.TFrame', padding=(60, 10))
         details_frame.pack(fill='both', expand=True)
 
         def add_row(label, value):
+            """Crea una fila de etiqueta y valor para la vista de detalle."""
             row = ttk.Frame(details_frame, style='Main.TFrame')
             row.pack(fill='x', pady=8)
             ttk.Label(row, text=label, font=('Helvetica', 10, 'bold'), foreground=Config.COLOR_NAVY_PROFUNDO, background=Config.COLOR_CREMA_FONDO).pack(anchor='w')
             ttk.Label(row, text=value, font=('Helvetica', 14), background=Config.COLOR_CREMA_FONDO).pack(anchor='w')
             ttk.Separator(row, orient='horizontal').pack(fill='x', pady=5)
 
+        # Muestra los datos
         add_row("Teléfono Móvil", c_tel)
         add_row("Correo Electrónico", c_email)
         add_row("ID Sistema", str(c_id))
 
     def show_contact_form(self, is_new=False, contact_data=None):
+        """Muestra el formulario para crear o editar un contacto.
+
+        Args:
+            is_new: True para un nuevo contacto, False para edición.
+            contact_data: Datos del contacto si es edición (opcional).
+        """
         c_id, c_name, c_tel, c_email = (None, "", "", "")
         if contact_data:
             c_id, c_name, c_tel, c_email = contact_data
@@ -357,6 +449,7 @@ class AgendaApp:
         self._clear_view()
         self.master.configure(bg=Config.COLOR_CREMA_FONDO)
 
+        # Encabezado
         header = ttk.Frame(self.master, style='Header.TFrame', height=70, padding=10)
         header.pack(fill='x')
         tk.Button(header, text=f"{Config.ICON_ATRAS} Volver", command=self.show_main_view,
@@ -366,6 +459,7 @@ class AgendaApp:
         form_frame = ttk.Frame(self.master, style='Main.TFrame', padding=50)
         form_frame.pack(fill='both', expand=True)
 
+        # Variables de control para los campos
         vars = {
             "nombre": tk.StringVar(value=c_name),
             "telefono": tk.StringVar(value=c_tel),
@@ -373,27 +467,34 @@ class AgendaApp:
         }
 
         def create_input(lbl, var):
+            """Crea una etiqueta y un campo de entrada (Entry)."""
             c = ttk.Frame(form_frame, style='Main.TFrame')
             c.pack(fill='x', pady=12)
             ttk.Label(c, text=lbl, font=('Helvetica', 11, 'bold'), foreground=Config.COLOR_NAVY_PROFUNDO, background=Config.COLOR_CREMA_FONDO).pack(anchor='w')
             ttk.Entry(c, textvariable=var, font=('Helvetica', 12), bootstyle="primary").pack(fill='x', pady=(5,0), ipady=3)
 
+        # Creación de campos del formulario
         create_input("Nombre Completo *", vars["nombre"])
         create_input("Teléfono *", vars["telefono"])
         create_input("Correo Electrónico", vars["email"])
 
         def save():
+            """Función de callback para guardar/actualizar el contacto, incluyendo validación."""
             n = vars["nombre"].get().strip()
             t = vars["telefono"].get().strip()
             e = vars["email"].get().strip()
             
+            # 1. Validación de campos obligatorios
             if not n or not t:
                 self._show_modal("Error", "Nombre y Teléfono son obligatorios.")
                 return
+            
+            # 2. Validación de formato de teléfono usando la utilidad
             if not validar_telefono(t):
                 self._show_modal("Error", "Teléfono inválido.")
                 return
 
+            # 3. Ejecución de la operación CRUD
             if is_new:
                 db.insertar_contacto(n, t, e)
                 self._show_modal("Éxito", "Contacto guardado.")
@@ -401,16 +502,23 @@ class AgendaApp:
                 db.actualizar_contacto(c_id, n, t, e)
                 self._show_modal("Éxito", "Contacto actualizado.")
             
+            # 4. Regreso a la vista principal
             self.show_main_view()
 
         ttk.Button(form_frame, text=f"{Config.ICON_GUARDAR} GUARDAR", style='Gold.TButton', width=20, command=save).pack(pady=40)
 
     # --- MODALES ---
     def _show_modal(self, title, msg):
+        """Muestra una ventana de información estándar de Tkinter."""
         messagebox.showinfo(title, msg)
 
     def handle_delete_contact(self, c_id, c_name):
+        """Maneja la solicitud de eliminación pidiendo confirmación al usuario.
+
+        Args:
+            c_id: ID del contacto a eliminar.
+            c_name: Nombre del contacto para el mensaje de confirmación.
+        """
         if messagebox.askyesno("Eliminar", f"¿Eliminar a {c_name}?"):
             db.eliminar_contacto(c_id)
             self.show_main_view()
-
