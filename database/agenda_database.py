@@ -14,10 +14,29 @@ import sqlite3
 import os
 import sys
 
+
+def resource_path(relative_path):
+    """Obtiene la ruta válida tanto en ejecución normal como en PyInstaller."""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+
 # La base de datos debe estar en la raíz del proyecto
 # Determina la ruta absoluta de la raíz del proyecto para localizar la base de datos.
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(project_root, 'agenda.db')
+
+def get_db_path():
+    """Devuelve la ruta REAL donde debe estar la base de datos."""
+    # Cuando es EXE, se usa el directorio donde está el ejecutable
+    if getattr(sys, 'frozen', False):
+        return os.path.join(os.path.dirname(sys.executable), "agenda.db")
+
+    # En modo desarrollo, usar carpeta del proyecto
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(project_root, "agenda.db")
+
+
+DB_PATH = get_db_path()
 
 
 def get_db_connection():

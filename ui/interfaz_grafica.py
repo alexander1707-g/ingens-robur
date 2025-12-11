@@ -27,6 +27,7 @@ project_root = os.path.dirname(current_dir)
 sys.path.append(project_root)
 
 # --- MOCKUP DE BASE DE DATOS Y UTILIDADES ---
+from database.agenda_database import resource_path
 from database import agenda_database as db 
 from utils.validaciones import * # --- 1. CONSTANTES Y CONFIGURACIÓN ESTÉTICA ---
 class Config:
@@ -139,7 +140,8 @@ class AgendaApp:
         self._configure_styles()
         
         # Logo para el modal
-        logo_path = os.path.join(project_root, 'ui', 'logo_empresa.png') 
+        logo_path = resource_path(os.path.join("ui", "logo_empresa.png"))
+
         self.team_logo_adapter = ImageAdapter(master, logo_path)
         
         self.show_main_view()
